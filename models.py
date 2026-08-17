@@ -1,9 +1,8 @@
 """SQLAlchemy ORM models (DB tables)"""
 
-from sqlalchemy import Column, Integer, String, Float, Boolean
+from sqlalchemy import Column, Integer, Date, Float, Boolean, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from database import Base
-
 
 # SleepReadingDB is a Python class that models the sleep_readings table
 # in the PostgreSQL database.
@@ -23,4 +22,10 @@ class SleepReadingDB(Base):
     heart_rate = Column(Integer, nullable=False)
     is_deep_sleep = Column(Boolean, default=False)
     raw_device_data = Column(JSONB, nullable=True)
+    recorded_at = Column(Date, nullable=False)
+    sleep_quality_score = Column(Integer, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("patient_id", "recorded_at"),
+    )
 

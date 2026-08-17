@@ -1,5 +1,6 @@
 """Pydantic models (request/response validation)"""
 from pydantic import BaseModel
+from datetime import date
 # SleepReadingBase defines the shared/common fields for the Sleep Reading
 # Pydantic schemas. Other schemas (Create, Update, Response) inherit from
 # it to avoid repeating the same fields — it's not tied to the DB directly,
@@ -10,6 +11,8 @@ class SleepReading(BaseModel):
     heart_rate: int
     is_deep_sleep: bool
     raw_device_data: dict | None = None
+    recorded_at: date
+    sleep_quality_score: int | None = None
 
 
 # SleepReadingPatch mirrors SleepReading's fields but makes every one
@@ -21,3 +24,5 @@ class SleepReadingPatch(BaseModel):
     heart_rate: int | None = None
     is_deep_sleep: bool | None = None
     raw_device_data: dict | None = None
+    recorded_at: date | None = None
+    sleep_quality_score: int | None = None

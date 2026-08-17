@@ -4,7 +4,7 @@
 validation passes → validated data goes into the route function → 
 you build an ORM model object from it → SQLAlchemy session sends it to Postgres."""
 
-
+from sqlalchemy.exc import IntegrityError
 from models import SleepReadingDB  # must be imported so Base knows about it
 from database import SessionLocal
 from fastapi import Depends, HTTPException
@@ -44,10 +44,17 @@ def get_reading(reading_id: int, db: Session = Depends(get_db)):
 @app.post("/readings", response_model=SleepReadingResponse)
 def get_reading(sleep_reading: SleepReading ,db: Session = Depends(get_db)):
     new_reading = SleepReadingDB(**sleep_reading.model_dump())
-    db.add(new_reading)
-    db.commit()
-    db.refresh(new_reading)
-    return new_reading
+    try:
+        db.add(new_reading)
+        db.commit()
+        db.refresh(new_reading)
+        return new_reading
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="A reading for this patient on this date already exists."
+        )
 
 
 @app.delete("/readings/{reading_id}")
@@ -69,9 +76,17 @@ def update_reading(reading_id: int, sleep_reading: SleepReading ,db: Session = D
     for key, value in sleep_reading.model_dump().items():
         setattr(existing, key, value)
 
-    db.commit()
-    db.refresh(existing)
-    return existing
+    try:
+        db.commit()
+        db.refresh(existing)
+        return existing
+
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="A reading for this patient on this date already exists."
+        )
 
 
 
@@ -81,7 +96,10 @@ def patch_reading(reading_id: int, sleep_reading: SleepReadingPatch, db: Session
     if existing is None:
         raise HTTPException(status_code=404, detail="Reading not found")
 
+    # Only update fields the client actually sent; leave all other existing
+    # values unchanged. model_dump(exclude_unset=True)
     for key, value in sleep_reading.model_dump(exclude_unset=True).items():
+        # Convert the Pydantic model to a dict and update each field on the existing DB object.
         setattr(existing, key, value)
 
     db.commit()
