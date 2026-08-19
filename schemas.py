@@ -58,6 +58,11 @@ class SleepReadingResponse(SleepReading):
     id: int
     model_config = ConfigDict(from_attributes=True)
 
+class SleepReadingWithPatient(SleepReading):
+    id: int
+    patient: PatientResponse | None = None
+    model_config = ConfigDict(from_attributes=True)
+
 
 # PatientResponse adds the DB-generated id for returning to the client.
 class PatientResponse(Patient):

@@ -1,4 +1,5 @@
 """FastAPI app instance and routes"""
+from psycopg2._psycopg import DataError
 
 """Client request → FastAPI parses it against Pydantic model → 
 validation passes → validated data goes into the route function → 
@@ -7,9 +8,11 @@ from sqlalchemy.exc import IntegrityError
 from models import SleepReadingDB, PatientDB # must be imported so Base knows about it
 from database import SessionLocal
 from fastapi import Depends, HTTPException
-from schemas import SleepReading, SleepReadingPatch, SleepReadingResponse, Patient, PatientResponse, PatientPatch
+from schemas import SleepReading, SleepReadingPatch, SleepReadingResponse, Patient, PatientResponse, PatientPatch, \
+    SleepReadingWithPatient
 from sqlalchemy.orm import Session
 from fastapi import FastAPI
+from datetime import date
 app = FastAPI()
 # Generator dependency: creates a new DB session per request, yields it
 # to the endpoint (via Depends), then closes it automatically once the
@@ -31,6 +34,46 @@ def get_reading(reading_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Reading not found")
     return reading
 
+
+#endpoint with query parameters
+# since it returns multiple rows, so we use list for repost model
+@app.get("/readings", response_model=list[SleepReadingWithPatient])
+def get_query_readings(
+    patient_id: int | None = None,
+    sleep_duration_hours: float | None = None,
+    heart_rate: int | None = None,
+    is_deep_sleep: bool | None = None,
+    recorded_at: date | None = None,
+    sleep_quality_score: int | None = None,
+    name: str | None = None,
+    age: int | None = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(SleepReadingDB)
+
+    filters = {
+        SleepReadingDB.patient_id: patient_id,
+        SleepReadingDB.sleep_duration_hours: sleep_duration_hours,
+        SleepReadingDB.heart_rate: heart_rate,
+        SleepReadingDB.is_deep_sleep: is_deep_sleep,
+        SleepReadingDB.recorded_at: recorded_at,
+        SleepReadingDB.sleep_quality_score: sleep_quality_score,
+    }
+
+    for column, value in filters.items():
+        if value is not None:
+            query = query.filter(column == value)
+
+    if name is not None or age is not None:
+        query = query.join(SleepReadingDB.patient)
+
+        if name is not None:
+            query = query.filter(PatientDB.name == name)
+
+        if age is not None:
+            query = query.filter(PatientDB.age == age)
+
+    return query.all()
 
 @app.post("/readings", response_model=SleepReadingResponse)
 def create_reading(sleep_reading: SleepReading ,db: Session = Depends(get_db)):
@@ -118,6 +161,8 @@ def patch_reading(reading_id: int, sleep_reading: SleepReadingPatch, db: Session
             status_code=409,
             detail="A reading for this patient on this date already exists."
         )
+
+
 """Patients endpoints"""
 
 
@@ -143,16 +188,6 @@ def create_patient(patient: Patient, db: Session = Depends(get_db)):
             status_code=409,
             detail="A patient with this name and age already exists."
         )
-
-
-@app.delete("/patients/{patient_id}")
-def delete_patient(patient_id: int, db: Session = Depends(get_db)):
-    patient = db.query(PatientDB).filter(PatientDB.id == patient_id).first()
-    if patient is None:
-        raise HTTPException(status_code=404, detail="Patient not found")
-    db.delete(patient)
-    db.commit()
-    return {"detail": "patient deleted"}
 
 
 @app.put("/patients/{patient_id}", response_model=PatientResponse)
@@ -198,7 +233,16 @@ def patch_patient(patient_id: int, patient: PatientPatch,  db: Session = Depends
         )
 
 
-
+@app.delete("/patients/{patient_id}")
+def delete_patient(patient_id: int, db: Session = Depends(get_db)):
+    patient = db.query(PatientDB).filter(PatientDB.id == patient_id).first()
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    if patient.readings:
+        raise HTTPException(status_code=409, detail="Cannot delete patient with existing readings")
+    db.delete(patient)
+    db.commit()
+    return {"detail": "patient deleted"}
 
 
 
