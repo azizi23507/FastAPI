@@ -2,13 +2,13 @@
 """Client request → FastAPI parses it against Pydantic model → 
 validation passes → validated data goes into the route function → 
 you build an ORM model object from it → SQLAlchemy session sends it to Postgres."""
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError # Raised when a commit violates a DB constraint — in this project specifically
 from models import SleepReadingDB, PatientDB # must be imported so Base knows about it
-from database import SessionLocal
+from database import SessionLocal # create Sessions
 from fastapi import Depends, HTTPException
 from schemas import SleepReading, SleepReadingPatch, SleepReadingResponse, Patient, PatientResponse, PatientPatch, \
     SleepReadingWithPatient
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session # type hint for db parameter, for autocomplete/clarity
 from fastapi import FastAPI
 from datetime import date
 app = FastAPI()
