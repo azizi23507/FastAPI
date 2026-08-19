@@ -1,6 +1,4 @@
 """FastAPI app instance and routes"""
-from psycopg2._psycopg import DataError
-
 """Client request → FastAPI parses it against Pydantic model → 
 validation passes → validated data goes into the route function → 
 you build an ORM model object from it → SQLAlchemy session sends it to Postgres."""
@@ -75,6 +73,17 @@ def get_query_readings(
 
     return query.all()
 
+# using back_populates in the endpoint
+@app.get("/patients/{patient_id}/readings", response_model=list[SleepReadingResponse])
+def get_patient_readings(patient_id: int, db: Session = Depends(get_db)):
+    patient = db.query(PatientDB).filter(PatientDB.id == patient_id).first()
+    if patient is None:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return patient.readings
+
+
+
+
 @app.post("/readings", response_model=SleepReadingResponse)
 def create_reading(sleep_reading: SleepReading ,db: Session = Depends(get_db)):
     patient = db.query(PatientDB).filter(PatientDB.id == sleep_reading.patient_id).first()
@@ -95,14 +104,7 @@ def create_reading(sleep_reading: SleepReading ,db: Session = Depends(get_db)):
         )
 
 
-@app.delete("/readings/{reading_id}")
-def delete_reading(reading_id: int, db:Session = Depends(get_db)):
-    reading = db.query(SleepReadingDB).filter(SleepReadingDB.id == reading_id).first()
-    if reading is None:
-        raise HTTPException(status_code=404, detail="Reading not found")
-    db.delete(reading)
-    db.commit()
-    return {"detail": "reading deleted"}
+
 
 @app.put("/readings/{reading_id}", response_model=SleepReadingResponse)
 def update_reading(reading_id: int, sleep_reading: SleepReading ,db: Session = Depends(get_db)):
@@ -161,6 +163,17 @@ def patch_reading(reading_id: int, sleep_reading: SleepReadingPatch, db: Session
             status_code=409,
             detail="A reading for this patient on this date already exists."
         )
+
+@app.delete("/readings/{reading_id}")
+def delete_reading(reading_id: int, db:Session = Depends(get_db)):
+    reading = db.query(SleepReadingDB).filter(SleepReadingDB.id == reading_id).first()
+    if reading is None:
+        raise HTTPException(status_code=404, detail="Reading not found")
+    db.delete(reading)
+    db.commit()
+    return {"detail": "reading deleted"}
+
+
 
 
 """Patients endpoints"""
